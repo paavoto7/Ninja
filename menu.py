@@ -51,7 +51,7 @@ def menu(screen, clock, FPS, bg, game_over=False):
 
         if game_over:
             center = screen.get_width() / 2, screen.get_height() / 2
-            over = Score("impact", "Game Over", center, 100, "white")
+            over = Score("impact", "Game Over", center, 100, (200, 28, 36))
             screen.blit(over.text, over.tRect)
 
         screen.blit(button.image, button.rect)
