@@ -1,5 +1,6 @@
 from os import listdir
 import random
+import math
 
 import pygame
 import mediapipe as mp
@@ -48,10 +49,30 @@ class Fruit(pygame.sprite.Sprite):
         self.image = image[0]
         self.name = image[1]
         self.rect = self.image.get_rect(center=position)
+        #self.start = position
+        self.speed = 35
+        #self.weight = 10
+
+        self.angle = math.radians(random.uniform(self._angle(position[0]), 90))
+        self.vx = self.speed * math.cos(self.angle)
+        self.vy = self.speed * math.sin(self.angle)
     
-    def update(self):
+    def _angle(self, x):
+        return 90 - math.degrees(0.5*math.asin(((SCREEN_WIDTH-x)*0.981)/self.speed**2))
+    
+    def update_(self):
         self.rect.y += 5
         if self.rect.y >= SCREEN_BOTTOM:
+            global LIVES
+            LIVES -= 1
+            self.kill()
+    
+    def update(self):
+        #max_angle = (self.speed*math.sin(2*))
+        self.rect.x += self.vx
+        self.rect.y -= self.vy
+        self.vy -= 0.98
+        if self.rect.midtop[1] >= SCREEN_BOTTOM:
             global LIVES
             LIVES -= 1
             self.kill()
@@ -147,7 +168,7 @@ def fruit_generator(group, width):
     """Generate the fruits"""
     # Choose a random image from
     image = images["fruits"][random.randint(0, len(images["fruits"])-1)]
-    position = (random.randint(0, width), 0)
+    position = (random.randint(0, width), SCREEN_BOTTOM)
     Fruit(image, position, group)
 
 
@@ -203,6 +224,7 @@ def main():
     katana = Katana(katanaGroup)
 
     score = Score("impact", SCORE, (50, 50), 100, "white")
+    fps_display = Score("impact", 0, (50, 120), 80, "white")
 
     # A timer to create new fruits
     pygame.time.set_timer(CREATE_FRUIT, 1000)
@@ -210,7 +232,7 @@ def main():
     options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path),
             running_mode=VisionRunningMode.LIVE_STREAM,
-            num_hands=2,
+            num_hands=1,
             min_hand_detection_confidence=0.01,
             min_hand_presence_confidence=0.01,
             min_tracking_confidence=0.01,
@@ -272,6 +294,9 @@ def main():
         ]
 
         screen.blit(score.text, score.tRect)
+        if timestamp % 2 != 0:    
+            fps_display.update(round(clock.get_fps(), 2))
+        screen.blit(fps_display.text, fps_display.tRect)
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         x = pygame.surfarray.make_surface(frame.transpose([1,0,2]))
