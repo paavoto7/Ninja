@@ -113,10 +113,11 @@ class Katana(pygame.sprite.Sprite):
                 self.pos += self.pos * 0.01
                 self.rect.bottomright = self.pos
             return
-        # Second index is the point of hand (https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker#models)
+        
+        avg_landmarks = self._average(landmarks[0])
         heading = (
-            landmarks[0][9].x * SCREEN_WIDTH,
-            landmarks[0][9].y * SCREEN_BOTTOM
+            avg_landmarks[0] * SCREEN_WIDTH,
+            avg_landmarks[1] * SCREEN_BOTTOM
             ) - self.pos
         self.pos += heading * 0.1
         self.rect.bottomright = self.pos
@@ -130,6 +131,16 @@ class Katana(pygame.sprite.Sprite):
             return False
         else:
             return True
+    
+    def _average(self, landmarks) -> tuple[float, float]:
+        # Return the average coordinates in the middle of the hand
+        # Indexes are the points of hand (https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker#models)
+        results = landmarks[6:-1]
+        x = y = 0
+        for coords in results:
+            x += coords.x
+            y += coords.y
+        return (x / len(results), y / len(results))
 
 
 def fruit_generator(group, width):
@@ -262,18 +273,17 @@ def main():
 
         screen.blit(score.text, score.tRect)
 
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        x = pygame.surfarray.make_surface(frame.transpose([1,0,2]))
+        x = pygame.transform.scale_by(x, 0.6)
+        screen.blit(x, (SCREEN_WIDTH-x.get_width(), SCREEN_BOTTOM-x.get_height()))
+
         fruits.update()
         fruits.draw(screen)
         # For mouse: katanaGroup.update()
         katanaGroup.draw(screen)
         sliced.draw(screen)
         sliced.update()
-        
-        # Blit camera here so it sits on top of everything
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        x = pygame.surfarray.make_surface(frame.transpose([1,0,2]))
-        x = pygame.transform.scale_by(x, 0.6)
-        screen.blit(x, (SCREEN_WIDTH-x.get_width(), SCREEN_BOTTOM-x.get_height()))
 
         pygame.display.flip()
         clock.tick(FPS)
