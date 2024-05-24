@@ -3,16 +3,19 @@ import pygame
 from Score import Score
 
 class Button:
+    """Provides a button with an image"""
     def __init__(self, image, pos=(0,0)) -> None:
         self.image = image
         self.rect = self.image.get_rect(midtop=pos)
 
     def pressed(self, coordinate):
-        if self.rect.collidepoint(coordinate):
-            return True
+        """Check whether a point collides, e.g. with mouse coordinates"""
+        return self.rect.collidepoint(coordinate)
 
 
-def menu(screen, clock, FPS, bg, game_over=False):
+def menu(screen, clock, FPS, bg, game_over=False) -> bool:
+    """Provides a menu to be used in a game.
+    Game over argument decides whether to display start menu or not."""
 
     on_pause = True
     center = (screen.get_width() / 2, screen.get_height() / 2)
@@ -36,18 +39,9 @@ def menu(screen, clock, FPS, bg, game_over=False):
                     on_pause = False
             if event.type == pygame.QUIT:
                 exit()
+        
         screen.fill("black")
         screen.blit(bg, (0, 0))
-        
-        """if beginning:
-            if len(grounds) < 2:
-                Ground(grounds)
-            screen.blit(bg, (0, 0))
-            grounds.draw(screen)
-            grounds.update()
-            screen.blit(player.image, player.rect)
-            screen.blit(button.image, button.rect)"""
-
 
         if game_over:
             center = screen.get_width() / 2, screen.get_height() / 2

@@ -1,4 +1,5 @@
 from os import listdir
+from sys import argv
 import random
 import math
 
@@ -26,6 +27,7 @@ SCORE = 0
 HIGH_SCORE = 0
 LIVES = 5
 CREATE_FRUIT = pygame.event.custom_type()
+INTERVAL = 1000 if len(argv) == 1 else int(argv[1])
 
 images = {}
 images["fruits"] = []
@@ -49,18 +51,19 @@ class Fruit(pygame.sprite.Sprite):
         self.image = image[0]
         self.name = image[1]
         self.rect = self.image.get_rect(center=position)
-        #self.start = position
-        self.speed = 35
-        #self.weight = 10
+        self.speed = random.randint(30,40)
+        self.side = 1 if SCREEN_WIDTH / 2 > self.rect.centerx else -1
 
         self.angle = math.radians(random.uniform(self._angle(position[0]), 90))
-        self.vx = self.speed * math.cos(self.angle)
+        self.vx = self.speed * self.side * math.cos(self.angle)
         self.vy = self.speed * math.sin(self.angle)
     
     def _angle(self, x):
-        return 90 - math.degrees(0.5*math.asin(((SCREEN_WIDTH-x)*0.981)/self.speed**2))
+        angle = min(((SCREEN_WIDTH-x)*0.981)/self.speed**2, 1)
+        return 90 - math.degrees(0.5*math.asin(angle))
     
-    def update_(self):
+    def _update_falling(self):
+        # The one for non hand movement
         self.rect.y += 5
         if self.rect.y >= SCREEN_BOTTOM:
             global LIVES
@@ -68,7 +71,7 @@ class Fruit(pygame.sprite.Sprite):
             self.kill()
     
     def update(self):
-        #max_angle = (self.speed*math.sin(2*))
+        """Handles the motion of the fruit"""
         self.rect.x += self.vx
         self.rect.y -= self.vy
         self.vy -= 0.98
@@ -79,7 +82,7 @@ class Fruit(pygame.sprite.Sprite):
 
 
 class Sliced(pygame.sprite.Sprite):
-    """Creates a sliced fruit based on which fruit was sliced"""
+    """Creates a sliced fruit based on which fruit was sliced and the side."""
     def __init__(self, whole: Fruit, order, *groups) -> None:
         super().__init__(*groups)
         self.image = images[f"{whole.name}_{order}"]
@@ -87,6 +90,7 @@ class Sliced(pygame.sprite.Sprite):
         self.rect = self._set_rect(whole)
         self.velx = 0
         self.vely = 0
+        self.acceleration = -0.5 if self.order == 1 else 0.5
 
     def _set_rect(self, whole):
         # Decides whether to use the left or right side of sliced
@@ -97,7 +101,7 @@ class Sliced(pygame.sprite.Sprite):
     
     def update(self):
         # Makes the movement more natural
-        self.velx += -0.5 if self.order == 1 else 0.5
+        self.velx += self.acceleration
         self.vely += 1
         self.rect.x += self.velx
         self.rect.y += self.vely
@@ -154,7 +158,7 @@ class Katana(pygame.sprite.Sprite):
             return True
     
     def _average(self, landmarks) -> tuple[float, float]:
-        # Return the average coordinates in the middle of the hand
+        # Return the average coordinates of the middle of the hand
         # Indexes are the points of hand (https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker#models)
         results = landmarks[6:-1]
         x = y = 0
@@ -164,15 +168,16 @@ class Katana(pygame.sprite.Sprite):
         return (x / len(results), y / len(results))
 
 
-def fruit_generator(group, width):
-    """Generate the fruits"""
+def fruit_generator(group: pygame.sprite.Group, width=SCREEN_WIDTH) -> None:
+    """Generate the fruits.
+    """
     # Choose a random image from
     image = images["fruits"][random.randint(0, len(images["fruits"])-1)]
-    position = (random.randint(0, width), SCREEN_BOTTOM)
+    position = (random.randint(0 + image[0].get_width(), width - image[0].get_width()), SCREEN_BOTTOM)
     Fruit(image, position, group)
 
 
-def generate_sliced(whole, group):
+def generate_sliced(whole:pygame.sprite.Sprite, group) -> None:
     """Generate the sliced fruits"""
     Sliced(whole, 1, group)
     Sliced(whole, 2, group)
@@ -189,7 +194,7 @@ def load_score():
         HIGH_SCORE = int(score.read())
 
 
-def quit(screen, clock, fruits, sliced, game_over=False):
+def quit(screen, clock, fruits, sliced, game_over=False) -> bool:
     """Function for quitting and initialising a fresh game.
     Takes the screen canvas and clock.
     Takes fruits and sliced to empty them.
@@ -203,17 +208,20 @@ def quit(screen, clock, fruits, sliced, game_over=False):
     return menu(screen, clock, FPS, images["shoji"], game_over)
 
 
+def check_collided(sprite: Katana, other_sprite: Fruit) -> bool:
+    return pygame.sprite.collide_mask(sprite, other_sprite) is not None
+
+
 def main():
     global SCORE, LIVES
     load_score()
 
     pygame.init()
-    pygame.mixer.init()
 
     screen_size = (SCREEN_WIDTH, SCREEN_BOTTOM)
     screen = pygame.display.set_mode(screen_size, pygame.SCALED)
-
     clock = pygame.time.Clock()
+
     load_images()
 
     # Create the sprite groups
@@ -227,7 +235,7 @@ def main():
     fps_display = Score("impact", 0, (50, 120), 80, "white")
 
     # A timer to create new fruits
-    pygame.time.set_timer(CREATE_FRUIT, 1000)
+    pygame.time.set_timer(CREATE_FRUIT, INTERVAL)
 
     options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path),
@@ -242,6 +250,7 @@ def main():
     cam = cv2.VideoCapture(0)
     handlandmarker = HandLandmarker.create_from_options(options)
     timestamp = 0
+
     running = menu(screen, clock, FPS, images["shoji"])
 
     while running:
@@ -273,14 +282,15 @@ def main():
             save_score()
             running = quit(screen, clock, fruits, sliced, game_over=True)
         
-        if collided := pygame.sprite.spritecollideany(katana, fruits):
+        if collideds := pygame.sprite.spritecollide(katana, fruits, False, collided=check_collided):
             SCORE += 1
             katana.sound.play()
-            generate_sliced(collided, sliced)
-            collided.kill()
+            for collided in collideds:
+                generate_sliced(collided, sliced)
+                collided.kill()
             # Update the timer every ten fruits until the fruits start spawning rougly every 100 ms
             if SCORE <= 260 and SCORE % 10 == 0:
-                pygame.time.set_timer(CREATE_FRUIT, int(1000 - SCORE**1.05))
+                pygame.time.set_timer(CREATE_FRUIT, int(INTERVAL - SCORE**1.05))
         score.update(SCORE)
         
         screen.fill("black")
