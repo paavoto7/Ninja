@@ -116,7 +116,7 @@ class Katana(pygame.sprite.Sprite):
         self.image = images["katana"]
         #self.rect = self.image.get_rect(center=(100, 100))
         self.mask = pygame.mask.from_surface(self.image)
-        self.rect = self.mask.get_rect()
+        self.rect = self.image.get_rect()
         self.pos = pygame.Vector2((100,100))
         self.sound = pygame.mixer.Sound("./sounds/Recording.wav")
         self.sound.set_volume(0.2)
@@ -150,6 +150,13 @@ class Katana(pygame.sprite.Sprite):
         angle = (SCREEN_WIDTH / 180) * (self.rect.x / 100)
         self.image = pygame.transform.rotate(images["katana"], angle)
     
+    def create_mask(self):
+        """This solves a peculiar bug that happened when I called
+        the following line in the update_from_hand method.
+        Might be caused by the detect_async and callback of mediapipe.
+        """
+        self.mask = pygame.mask.from_surface(self.image)
+    
     def _out_of_bounds(self):
         # Don't update the positon if isn't in bounds of the screen
         if 0 <= self.pos.x <= SCREEN_WIDTH and 0 <= self.pos.y <= SCREEN_BOTTOM:
@@ -172,7 +179,7 @@ def fruit_generator(group: pygame.sprite.Group, width=SCREEN_WIDTH) -> None:
     """Generate the fruits.
     """
     # Choose a random image from
-    image = images["fruits"][random.randint(0, len(images["fruits"])-1)]
+    image = random.choice(images["fruits"])
     position = (random.randint(0 + image[0].get_width(), width - image[0].get_width()), SCREEN_BOTTOM)
     Fruit(image, position, group)
 
@@ -209,6 +216,7 @@ def quit(screen, clock, fruits, sliced, game_over=False) -> bool:
 
 
 def check_collided(sprite: Katana, other_sprite: Fruit) -> bool:
+    """Checks accurately (masks) whether fruit was hit"""
     return pygame.sprite.collide_mask(sprite, other_sprite) is not None
 
 
@@ -309,14 +317,15 @@ def main():
         screen.blit(fps_display.text, fps_display.tRect)
 
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        x = pygame.surfarray.make_surface(frame.transpose([1,0,2]))
-        x = pygame.transform.scale_by(x, 0.6)
-        screen.blit(x, (SCREEN_WIDTH-x.get_width(), SCREEN_BOTTOM-x.get_height()))
+        webcam = pygame.transform.scale_by(pygame.surfarray.make_surface(frame.transpose([1,0,2])), 0.6)
+        screen.blit(webcam, (SCREEN_WIDTH-webcam.get_width(), SCREEN_BOTTOM-webcam.get_height()))
 
         fruits.update()
         fruits.draw(screen)
-        # For mouse: katanaGroup.update()
+
         katanaGroup.draw(screen)
+        katana.create_mask()
+        
         sliced.draw(screen)
         sliced.update()
 
